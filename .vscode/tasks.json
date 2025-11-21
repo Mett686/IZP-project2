@@ -1,0 +1,28 @@
+{
+    "version": "2.0.0",
+    "tasks": [
+        {
+            "label": "build flows",
+            "type": "shell",
+            "command": "cc",
+            "args": [
+                "-std=c11",
+                "-g",
+                "-Wall",
+                "-Wextra",
+                "-Werror",
+                "-pedantic",
+                "flows.c",
+                "-o",
+                "$flows",
+                "-lm"
+            ],
+            "group": {
+                "kind": "build",
+                "isDefault": true
+            },
+            "problemMatcher": ["$gcc"],
+            "detail": "Compile the currently active C file"
+        }
+    ]
+}
