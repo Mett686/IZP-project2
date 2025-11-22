@@ -17,6 +17,22 @@ typedef struct flow {
     float avg_interarrival_time;
 } Flow;
 
+float flow_packet_size(Flow flow) {
+    if(flow.packet_count == 0) return flow.total_bytes;
+    float packet_size = flow.total_bytes / flow.packet_count;
+    return packet_size;
+}
+
+float flow_euc_dist(Flow flow1, Flow flow2, int wb, int wt, int wd, int ws) {
+    int b = (flow1.total_bytes - flow2.total_bytes);
+    int t = (flow1.duration - flow2.duration);
+    float d = (flow1.avg_interarrival_time - flow2.avg_interarrival_time);
+    float s = (flow_packet_size(flow1) - flow_packet_size(flow2));
+
+    float distance = wb*(b*b) + wt*(t*t) + wd*(d*d) + ws*(s*s);
+    return distance;
+}
+
 Flow *flow_arr_ctor(int len) {
     Flow *flow_arr = (Flow *)calloc(len, sizeof(Flow));
     if( flow_arr == NULL) {
@@ -56,27 +72,25 @@ int flow_read_line(FILE *file, Flow *flow) {
     return EXIT_SUCCESS;
 }
 
-Flow *flows_read_file(FILE *file) {
-    Flow *flow_arr = NULL;
-    int count = flows_read_init(file);
-    if(count == 0) {
-        fprintf(stderr, "File read couldn't initialize!\n");
-        return flow_arr;
-    }
-    flow_arr = flow_arr_ctor(count);
-    if( flow_arr == NULL) {
-        fprintf(stderr, "Couldn't read file, flow array creation failed!\n");
-        return flow_arr;
-    }
+int flows_read_file(FILE *file, Flow *flow_arr, int count) {
     for(int i = 0; i < count; i++) {
         if(flow_read_line(file, &flow_arr[i]) == EXIT_FAILURE) {
             fprintf(stderr, "Line read failed on line %d, file read stopped.\n", i+2);
-            return flow_arr;
+            return EXIT_FAILURE;
         }
     }
-    return flow_arr;
+    return EXIT_SUCCESS;
 }
 
+void print_flow(Flow flow) {
+    fprintf(stdout, "ID: %d\n", flow.id);
+    fprintf(stdout, "Source IP: %s\n", flow.src_ip);
+    fprintf(stdout, "Destination IP: %s\n", flow.dst_ip);
+    fprintf(stdout, "Bytes: %d\n", flow.total_bytes);
+    fprintf(stdout, "Duration %d\n", flow.duration);
+    fprintf(stdout, "Packet count: %d\n", flow.packet_count);
+    fprintf(stdout, "Interarrival time: %f\n", flow.avg_interarrival_time);
+}
 
 int main(int argc, char **argv) {
     // DEBUG
@@ -93,12 +107,19 @@ int main(int argc, char **argv) {
         return EXIT_FAILURE;
     }
 
-    Flow *flows = flows_read_file(file);
-    if(flows == NULL) {
+    int flow_count = flows_read_init(file);
+    Flow *flow_arr = flow_arr_ctor(flow_count);
+
+    if(flows_read_file(file, flow_arr, flow_count) == EXIT_FAILURE) {
         fprintf(stderr, "File read failed!\n");
         return EXIT_FAILURE;
     }
 
     fclose(file);
+
+    print_flow(flow_arr[0]);
+    print_flow(flow_arr[1]);
+    print_flow(flow_arr[2]);
+    print_flow(flow_arr[3]);
     return EXIT_SUCCESS;
 }
