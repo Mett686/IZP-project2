@@ -57,3 +57,4 @@ dkms.conf
 *.dwo
 
 .github/instructions/FIT.instructions.md
+--library=m
