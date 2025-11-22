@@ -101,15 +101,26 @@ int main(int argc, char **argv) {
     }
     #endif
 
+    // Open file
     FILE *file = fopen(argv[1], "r");
-    if(!file) {
+    if(file == NULL) {
         fprintf(stderr, "Failed to open file: %s\n", argv[1]);
         return EXIT_FAILURE;
     }
-
+    
+    // Read header
     int flow_count = flows_read_init(file);
+    if(flow_count == 0) {
+        return EXIT_FAILURE;
+    }
+    
+    // Create array for storing flows
     Flow *flow_arr = flow_arr_ctor(flow_count);
+    if(flow_arr == NULL) {
+        return EXIT_FAILURE;
+    }
 
+    // Read file row by row
     if(flows_read_file(file, flow_arr, flow_count) == EXIT_FAILURE) {
         fprintf(stderr, "File read failed!\n");
         return EXIT_FAILURE;
@@ -121,5 +132,7 @@ int main(int argc, char **argv) {
     print_flow(flow_arr[1]);
     print_flow(flow_arr[2]);
     print_flow(flow_arr[3]);
+
+    fprintf(stdout, "Euclidian distance: %f\n", flow_euc_dist(flow_arr[0], flow_arr[1], 1, 1, 1, 1));
     return EXIT_SUCCESS;
 }
