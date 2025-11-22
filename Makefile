@@ -5,7 +5,7 @@ LDLIBS = -lm
 flows: flows.c
 
 test:
-	./flows data.txt
+	./flows data.txt 2 1.0 1.0 1.0 1.0
 
 clean:
 	rm -f flows

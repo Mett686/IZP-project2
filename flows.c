@@ -17,19 +17,36 @@ typedef struct flow {
     float avg_interarrival_time;
 } Flow;
 
+typedef struct weight_vector {
+    float b;
+    float t;
+    float d;
+    float s;
+} W_Vector;
+
+W_Vector create_weight_vetor(char **argv) {
+    W_Vector vector = {
+        .b = strtof(argv[3], NULL),
+        .t = strtof(argv[4], NULL),
+        .d = strtof(argv[5], NULL),
+        .s = strtof(argv[6], NULL)
+    };
+    return vector;
+}
+
 float flow_packet_size(Flow flow) {
     if(flow.packet_count == 0) return flow.total_bytes;
     float packet_size = flow.total_bytes / flow.packet_count;
     return packet_size;
 }
 
-float flow_euc_dist(Flow flow1, Flow flow2, int wb, int wt, int wd, int ws) {
+float flow_euc_dist(Flow flow1, Flow flow2, W_Vector weight) {
     int b = (flow1.total_bytes - flow2.total_bytes);
     int t = (flow1.duration - flow2.duration);
     float d = (flow1.avg_interarrival_time - flow2.avg_interarrival_time);
     float s = (flow_packet_size(flow1) - flow_packet_size(flow2));
 
-    float distance = wb*(b*b) + wt*(t*t) + wd*(d*d) + ws*(s*s);
+    float distance = weight.b*(b*b) + weight.t*(t*t) + weight.d*(d*d) + weight.s*(s*s);
     return distance;
 }
 
@@ -44,6 +61,14 @@ Flow *flow_arr_ctor(int len) {
         }
     }
     return flow_arr;
+}
+
+void flow_arr_dtor(Flow *flow_arr, int len) {
+    for(int i = 0; i < len; i++) {
+        free(flow_arr[i].src_ip);
+        free(flow_arr[i].dst_ip);
+    }
+    free(flow_arr);
 }
 
 int flows_read_init(FILE *file) {
@@ -101,6 +126,8 @@ int main(int argc, char **argv) {
     }
     #endif
 
+    W_Vector weight_vector = create_weight_vetor(argv);
+
     // Open file
     FILE *file = fopen(argv[1], "r");
     if(file == NULL) {
@@ -128,11 +155,13 @@ int main(int argc, char **argv) {
 
     fclose(file);
 
-    print_flow(flow_arr[0]);
-    print_flow(flow_arr[1]);
-    print_flow(flow_arr[2]);
-    print_flow(flow_arr[3]);
+    fprintf(stdout, "Euclidian distance: %f\n", flow_euc_dist(flow_arr[0], flow_arr[1], weight_vector));
+    fprintf(stdout, "Euclidian distance: %f\n", flow_euc_dist(flow_arr[0], flow_arr[2], weight_vector));
+    fprintf(stdout, "Euclidian distance: %f\n", flow_euc_dist(flow_arr[0], flow_arr[3], weight_vector));
 
-    fprintf(stdout, "Euclidian distance: %f\n", flow_euc_dist(flow_arr[0], flow_arr[1], 1, 1, 1, 1));
+    fprintf(stdout, "Euclidian distance: %f\n", flow_euc_dist(flow_arr[1], flow_arr[0], weight_vector));
+    fprintf(stdout, "Euclidian distance: %f\n", flow_euc_dist(flow_arr[1], flow_arr[2], weight_vector));
+    fprintf(stdout, "Euclidian distance: %f\n", flow_euc_dist(flow_arr[1], flow_arr[3], weight_vector));
+
     return EXIT_SUCCESS;
 }
