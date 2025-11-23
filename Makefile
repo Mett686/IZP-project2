@@ -7,5 +7,8 @@ flows: flows.c
 test:
 	./flows data.txt 2 1.0 1.0 1.0 1.0
 
+test1:
+	./flows data.txt
+
 clean:
 	rm -f flows
