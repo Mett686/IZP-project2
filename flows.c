@@ -3,28 +3,33 @@
 #include <string.h>
 
 #define LINE_SIZE 256 // Maximal supported line size
-#define LINE_FORMAT "%d %*s %*s %d %d %d %lf" // Read everything important and ignore both IPs ( %*s )
+#define LINE_FORMAT "%d %*s %*s %lf %lf %lf %lf" // Read everything important and ignore both IPs ( %*s )
 
 
 typedef struct coordinates {
-    double b;
-    double t;
-    double d;
-    double s;
+    double bytes;
+    double time;
+    double delay;
+    double size;
 } Coords;
 
 typedef struct flow_cluster {
+    int cardinality;
     int size;
     int *id_arr;
-    Coords p;
+    Coords core;
 } Cluster;
 
-typedef struct clusters {
+typedef struct cluster_array {
     int count;
-    Cluster *arr[];
-} Clusters;
+    Cluster **arr;
+} ClusterArray;
 
 Cluster *cluster_ctor(int size) {
+    if(size < 1) {
+        fprintf(stderr, "Warning: ctor received size < 1, proceeding with size = 1");
+        size = 1;
+    }
     Cluster *cluster = malloc(sizeof(Cluster));
     if(cluster == NULL){
         fprintf(stderr, "Cluster allocation failed!\n");
@@ -36,6 +41,7 @@ Cluster *cluster_ctor(int size) {
         fprintf(stderr, "Cluster allocation failde, could not allocate id_arr!\n");
         return NULL;
     }
+    cluster->size = size;
     return cluster;
 }
 
@@ -44,19 +50,24 @@ void cluster_dtor(Cluster *cluster) {
     free(cluster);
 }
 
-Cluster *cluster_init(int id, Coords point) {
-    Cluster *cluster = cluster_ctor(1);
-    if(cluster == NULL) {
-        fprintf(stderr, "Could not initialize cluster, cluster_ctor failed!\n");
-        return NULL;
+int cluster_reserve(Cluster *cluster, int size) {
+    int *tmp = realloc(cluster->id_arr, size * sizeof(int));
+    if(tmp == NULL) {
+        fprintf(stderr, "Error: realloc failed\n");
+        return EXIT_FAILURE;
     }
-    cluster->size = 1;
+    cluster->id_arr = tmp;
+    return EXIT_SUCCESS;
+
+}
+
+void cluster_init(Cluster *cluster, int id, Coords point) {
+    cluster->cardinality = 1;
     cluster->id_arr[0] = id;
-    cluster->p.b = point.b;
-    cluster->p.t = point.t;
-    cluster->p.d = point.d;
-    cluster->p.s = point.s;
-    return cluster;
+    cluster->core.bytes = point.bytes;
+    cluster->core.time = point.time;
+    cluster->core.delay = point.delay;
+    cluster->core.size = point.size;
 }
 
 Cluster *cluster_merge(Cluster *cluster1, Cluster *cluster2) {
@@ -73,10 +84,10 @@ Cluster *cluster_merge(Cluster *cluster1, Cluster *cluster2) {
     double d_size = (double)size;
     double d_size1 = (double)cluster1->size;
     double d_size2 = (double)cluster2->size;
-    result->p.b = (d_size1 * cluster1->p.b - d_size2 * cluster2->p.b) / d_size;
-    result->p.t = (d_size1 * cluster1->p.t - d_size2 * cluster2->p.t) / d_size;
-    result->p.d = (d_size1 * cluster1->p.d - d_size2 * cluster2->p.d) / d_size;
-    result->p.s = (d_size1 * cluster1->p.s - d_size2 * cluster2->p.s) / d_size;
+    result->core.bytes = (d_size1 * cluster1->core.bytes - d_size2 * cluster2->core.bytes) / d_size;
+    result->core.time = (d_size1 * cluster1->core.time - d_size2 * cluster2->core.time) / d_size;
+    result->core.delay = (d_size1 * cluster1->core.delay - d_size2 * cluster2->core.delay) / d_size;
+    result->core.size = (d_size1 * cluster1->core.size - d_size2 * cluster2->core.size) / d_size;
 
     return result;
 }
@@ -90,38 +101,112 @@ double avg_packet_size(int total_bytes, int packet_count) {
 int data_read_init(FILE *file) {
     int count = 0;
     char line[LINE_SIZE] = "";
-    if(fgets(line, sizeof(line), file) == NULL)
+    if(fgets(line, sizeof(line), file) == NULL) {
+        fprintf(stderr, "fgets failed!\n");
+        return 0;
+    }
     if(sscanf(line, "count=%d\n", &count) != 1) {
         fprintf(stderr, "Invalid file format, failed to read count!\n");
     }
     return count;
 }
 
-int data_read_line(FILE *file/*, Cluster *cluster*/) {
+int parse_line(char *line, int *id, Coords *point) {
+    double packet_count = 0;
+    int result = sscanf(line, LINE_FORMAT,
+        id,
+        &point->bytes,
+        &point->time,
+        &packet_count,
+        &point->delay
+    );
+    if(result != 5) {
+        fprintf(stderr, "sscanf failed!\n");
+        return result;
+    }
+    if(packet_count == 0) {
+        point->size = point->bytes;
+    } else {
+    point->size = point->bytes / packet_count;
+    }
+    return result;
+}
+
+int data_read_line(FILE *file, Cluster *cluster) {
     char line[LINE_SIZE] = "";
     if(fgets(line, sizeof(line), file) == NULL) {
         fprintf(stderr, "fgets returned NULL\n");
         return EXIT_FAILURE;
     }
-
     int id = 0;
-    int bytes = 0;
-    int duration = 0;
-    int packet_count = 0;
-    double interarrival = 0;
-    sscanf(line, LINE_FORMAT,
-        &id,
-        &bytes,
-        &duration,
-        &packet_count,
-        &interarrival
-    );
+    Coords coords;
+    if(parse_line(line, &id, &coords) != 5) {
+        fprintf(stderr, "Line read failed because of failed parse_line!\n");
+        return EXIT_FAILURE;
+    }
+    cluster_init(cluster, id, coords);
+    return EXIT_SUCCESS;
+}
+
+ClusterArray *cluster_arr_ctor(int count, int size) {
+    ClusterArray *cluster_array = malloc(sizeof(ClusterArray));
+    if(cluster_array == NULL) {
+        fprintf(stderr, "ClusterArray allocation failed!\n");
+        return NULL;
+    }
+    cluster_array->arr = calloc(count, sizeof(Cluster));
+    if(cluster_array->arr == NULL) {
+        fprintf(stderr, "ClusterArray array allocation failed!\n");
+        free(cluster_array);
+        return NULL;
+    }
+    cluster_array->count = count;
+    for(int i = 0; i < count; i++) {
+        cluster_array->arr[i] = cluster_ctor(size);
+        if(cluster_array->arr[i] == NULL) {
+        fprintf(stderr, "ClusterArray cluster allocation failed!\n");
+        for(int j = i - 1; j >= 0; j--) {
+            free(cluster_array->arr[j]);
+        }
+        return NULL;
+        }
+    }
+    return cluster_array;
+}
+
+int cluster_arr_init(FILE *file, ClusterArray *cluster_arr) {
+    for(int i = 0; i < cluster_arr->count; i++) {
+        if(data_read_line(file, cluster_arr->arr[i]) == EXIT_FAILURE) {
+            fprintf(stderr, "Cluster array initialization failed when reading line!\n");
+            return EXIT_FAILURE;
+        }
+    }
     return EXIT_SUCCESS;
 }
 
 // test function
-void print_coord(Coords coord) {
-    fprintf(stdout, "Coord: [%lf, %lf, %lf, %lf]\n", coord.b, coord.t, coord.d, coord.s);
+void print_coords(Coords coord) {
+    fprintf(stdout, "Coords: [%lf, %lf, %lf, %lf]\n", coord.bytes, coord.time, coord.delay, coord.size);
+}
+
+void debug_print_cluster_array(ClusterArray *cluster_array) {
+    for(int i = 0; i < cluster_array->count; i++) {
+        Cluster *cluster = cluster_array->arr[i];
+        fprintf(stdout, "Cluster[%d]:\n   ID: %d\n   Cardinality: %d\n   ", i, cluster->id_arr[0], cluster->cardinality);
+        print_coords(cluster->core);
+    }
+}
+
+void print_clusters(ClusterArray *cluster_array) {
+    fprintf(stdout, "Clusters:\n");
+    for(int i = 0; i < cluster_array->count; i++) {
+        Cluster *cluster = cluster_array->arr[i];
+        fprintf(stdout, "Cluster %d:", i);
+        for(int j = 0; j < cluster->cardinality; j++) {
+            fprintf(stdout, " %d", cluster->id_arr[j]);
+        }
+        putchar('\n');
+    }
 }
 
 int main(int argc, char **argv) {
@@ -139,24 +224,42 @@ int main(int argc, char **argv) {
     }
 
     // initialize clusters
+    FILE *file = fopen(argv[1], "r");
+    if(file == NULL) {
+        fprintf(stderr, "Failed to open file: %s\n", argv[1]);
+        return EXIT_FAILURE;
+    }
+    int count = data_read_init(file);
 
+    ClusterArray *cluster_arr = cluster_arr_ctor(count, 1);
+    cluster_arr_init(file, cluster_arr);
+    if(cluster_arr == NULL) {
+        // TODO
+        return EXIT_FAILURE;
+    }
+
+    fclose(file);
     if(argc == 7) {
         int count = atoi(argv[2]);
         Coords w_vector = {
-        .b = strtod(argv[3], NULL),
-        .t = strtod(argv[4], NULL),
-        .d = strtod(argv[5], NULL),
-        .s = strtod(argv[6], NULL)
-    };
+        .bytes = strtod(argv[3], NULL),
+        .time = strtod(argv[4], NULL),
+        .delay = strtod(argv[5], NULL),
+        .size = strtod(argv[6], NULL)
+        };
+        
         // join them
 
         // DEBUG ///////////////////////////////////////////////////
         fprintf(stdout, "Resulting number of clusters: %d\n", count);
-        print_coord(w_vector);
+        print_coords(w_vector);
     }   
     
 
     // print result
 
+
+    ClusterArray *arr = cluster_arr_ctor(3,1);
+    print_clusters(arr); 
     return EXIT_SUCCESS;
 }
