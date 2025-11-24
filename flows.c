@@ -224,6 +224,21 @@ double cluster_dist(Cluster *cluster1, Cluster *cluster2, Coords w_vect) {
     return dist;
 }
 
+void find_lowest_dist(ClusterArray *array, Coords w_vect, int *result) {
+    double low = cluster_dist(array->arr[0], array->arr[1], w_vect);
+    
+    for(int i = 0; i < array->count - 1; i++) {
+        for(int j = i + 1; j < array->count; j++){
+            double tmp = cluster_dist(array->arr[i], array->arr[j], w_vect);
+            if(tmp <= low) {
+                low = tmp;
+                result[0] = i;
+                result[1] = j;
+            }
+        }
+    }
+}
+
 int main(int argc, char **argv) {
     // DEBUG ///////////////////////////////////////////////////////
     fprintf(stdout, "Argc: %d\n", argc);
@@ -284,6 +299,12 @@ int main(int argc, char **argv) {
     fprintf(stdout, "Distance 11 and 12: %lf\n", cluster_dist(cluster_arr->arr[1], cluster_arr->arr[2], w_vector));
     fprintf(stdout, "Distance 11 and 13: %lf\n", cluster_dist(cluster_arr->arr[1], cluster_arr->arr[3], w_vector));
     fprintf(stdout, "Distance 12 and 13: %lf\n", cluster_dist(cluster_arr->arr[2], cluster_arr->arr[3], w_vector));
+
+    int ids[2];
+    find_lowest_dist(cluster_arr, w_vector, ids);
+    fprintf(stdout, "Lowest distance is between: %d and %d\n", ids[0], ids[1]);
+
+    
     print_clusters(cluster_arr);
     return EXIT_SUCCESS;
 }
