@@ -209,12 +209,34 @@ void print_clusters(ClusterArray *cluster_array) {
     }
 }
 
+double cluster_dist(Cluster *cluster1, Cluster *cluster2, Coords w_vect) {
+    double dist_bytes = cluster1->core.bytes - cluster2->core.bytes;
+    dist_bytes *= dist_bytes;
+    double dist_time = cluster1->core.time - cluster2->core.time;
+    dist_time *= dist_time;
+    double dist_delay = cluster1->core.delay - cluster2->core.delay;
+    dist_delay *= dist_delay;
+    double dist_size = cluster1->core.size - cluster2->core.size;
+    dist_size *= dist_size;
+
+    double dist = w_vect.bytes * dist_bytes + w_vect.time * dist_time +
+                  w_vect.delay * dist_delay + w_vect.size * dist_size;
+    return dist;
+}
+
 int main(int argc, char **argv) {
     // DEBUG ///////////////////////////////////////////////////////
     fprintf(stdout, "Argc: %d\n", argc);
     for(int i = 0; i < argc; i++) {
         fprintf(stdout, "Argv[%d]: %s\n", i, argv[i]);
     }
+
+        Coords w_vector = {
+        .bytes = strtod(argv[3], NULL),
+        .time = strtod(argv[4], NULL),
+        .delay = strtod(argv[5], NULL),
+        .size = strtod(argv[6], NULL)
+        };
 
 ////////////////////////////////////////////////////////////////////
 
@@ -237,8 +259,6 @@ int main(int argc, char **argv) {
         // TODO
         return EXIT_FAILURE;
     }
-
-    fclose(file);
     if(argc == 7) {
         int count = atoi(argv[2]);
         Coords w_vector = {
@@ -257,9 +277,13 @@ int main(int argc, char **argv) {
     
 
     // print result
-
-
-    ClusterArray *arr = cluster_arr_ctor(3,1);
-    print_clusters(arr); 
+    // debug_print_cluster_array(cluster_arr);
+    fprintf(stdout, "Distance 10 and 11: %lf\n", cluster_dist(cluster_arr->arr[0], cluster_arr->arr[1], w_vector));
+    fprintf(stdout, "Distance 10 and 12: %lf\n", cluster_dist(cluster_arr->arr[0], cluster_arr->arr[2], w_vector));
+    fprintf(stdout, "Distance 10 and 13: %lf\n", cluster_dist(cluster_arr->arr[0], cluster_arr->arr[3], w_vector));
+    fprintf(stdout, "Distance 11 and 12: %lf\n", cluster_dist(cluster_arr->arr[1], cluster_arr->arr[2], w_vector));
+    fprintf(stdout, "Distance 11 and 13: %lf\n", cluster_dist(cluster_arr->arr[1], cluster_arr->arr[3], w_vector));
+    fprintf(stdout, "Distance 12 and 13: %lf\n", cluster_dist(cluster_arr->arr[2], cluster_arr->arr[3], w_vector));
+    print_clusters(cluster_arr);
     return EXIT_SUCCESS;
 }
