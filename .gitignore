@@ -1,5 +1,5 @@
 flows
-old-*
+old*
 
 # Prerequisites
 *.d

@@ -3,50 +3,197 @@
 #include <string.h>
 
 #define LINE_SIZE 256 // Maximal supported line size
+#define FLOW_DIMENSIONS 4 // Number of values in flow
+#define ARGV_FILE_ID 1
+#define ARGV_COUNT_ID 2
+#define ARGV_WEIGHTS_ID 3
 #define LINE_FORMAT "%d %*s %*s %lf %lf %lf %lf" // Read everything important and ignore both IPs ( %*s )
 
-typedef struct coordinates {
-    double bytes;
-    double time;
-    double delay;
-    double size;
-} Coords;
 
 typedef struct flow {
     int id;
-    Coords val;
+    double values[FLOW_DIMENSIONS];
 } Flow;
 
 typedef struct flow_distance {
-    int ids[2];
+    int id1;
+    int id2;
     double dist;
 } FlowDist;
 
 typedef struct cluster {
-    int cardinality;
+    int size;
     int capacity;
     int *id_arr;
 } Cluster;
 
 typedef struct cluster_array {
     int size;
+    int capacity;
     Cluster **arr;
-} ClusterArr;
+} ClustArr;
+
+// Recursive calculation of factorial
+int factorial(int n);
+
+// Allocates array of Flows (or one flow)
+Flow *flow_arr_ctor(int length);
+
+// Frees Flow (just free)
+void flow_arr_dtor(Flow *flow_arr);
+
+// Writes values into flow
+void flow_write(Flow *flow, int id, int *values);
+
+// Colculates weighted euclidean distance between two flows
+// needs to have dimensions defined
+double calculate_flow_dist(Flow *flow1, Flow *flow2, double *weights);
+
+// Creates array of FlowDist types that stores distances between all Flows in flow_arr
+// n is the number of elements in flow_arr
+// needs to have dimensions defined
+FlowDist *get_flow_distances(Flow *flow_arr, int n, double *weights);
+
+// Prints flow
+void print_flow(Flow *flow);
+
+// Reads header from file, returning number of flows in file
+int read_header(FILE *file);
+
+// Parses string into flow
+// Need to edit for different flow dimensions
+int parse_line(char *line, Flow *flow);
+
+// Reads file line and parses its contents into flow
+int read_line(FILE *file, Flow *flow);
+
+// Reads data from file into flow_arr
+int read_data(FILE *file, int flow_count, Flow *flow_arr);
+
+// Allocates cluster with given capacity
+Cluster *cluster_ctor(int capacity);
+
+// Frees cluster
+void cluster_dtor(Cluster *cluster);
+
+// Allocates and fills cluster with id from flow
+Cluster *flow_to_cluster(Flow *flow);
+
+// Allocates cluster array and fills it with flow to cluster,
+// executed on given flow_arr
+ClustArr *initialize_clusters(Flow *flow_arr, int flow_count);
+
+// Prints all clusters in cluster arr
+void print_clusters(ClustArr *clusters);
+
+
+int main(int argc, char **argv) {
+    // DEBUG ///////////////////////////////////////////////////////
+    #if 0
+    fprintf(stdout, "Argc: %d\n", argc);
+    for(int i = 0; i < argc; i++) {
+        fprintf(stdout, "Argv[%d]: %s\n", i, argv[i]);
+    }
+    #endif
+    ////////////////////////////////////////////////////////////////
+
+    if(argc != 2 && argc != 7) {
+        fprintf(stderr, "Invalid input!\n");
+        return EXIT_FAILURE;
+    }
+
+    // Read info from file
+    FILE *file = fopen(argv[ARGV_FILE_ID], "r");
+    int flow_count = read_header(file);
+    Flow *flow_arr = flow_arr_ctor(flow_count);
+    if(read_data(file, flow_count, flow_arr) == 0) {
+        fprintf(stderr, "Error, read 0 lines from file!\n");
+        return EXIT_FAILURE;
+    }
+
+    ClustArr *cluster_arr = initialize_clusters(flow_arr, flow_count);
+    
+    if(argc == 7 && 0) {
+        int cluster_count = atoi(argv[ARGV_COUNT_ID]);
+        double weights[FLOW_DIMENSIONS];
+        for(int i = 0; i < FLOW_DIMENSIONS; i++) {
+            weights[i] = strtod(argv[ARGV_WEIGHTS_ID + i], NULL);
+        }
+
+        FlowDist *dist_arr = get_flow_distances(flow_arr, flow_count, weights);
+
+        // REMOVE!!!!
+        (void)cluster_count;
+        (void)weights;
+        (void)dist_arr;
+        /////////////////////////////
+
+
+        // join them
+
+    }
+
+    print_clusters(cluster_arr);
+    return EXIT_SUCCESS;
+}
 
 int factorial(int n) {
     if(n == 0) return 1;
     return n*factorial(n-1);
 }
 
-void flow_init(Flow *flow, int id, Coords coords) {
-    flow->id = id;
-    flow->val.bytes = coords.bytes;
-    flow->val.time = coords.time;
-    flow->val.delay = coords.delay;
-    flow->val.size = coords.size;
+Flow *flow_arr_ctor(int length) {
+    Flow *flow = calloc(length, sizeof(Flow));
+    if(flow == NULL) {
+        fprintf(stderr, "Error: flow_create, malloc failed!\n");
+        return NULL;
+    }
+    return flow;
 }
 
-int data_read_init(FILE *file) {
+void flow_arr_dtor(Flow *flow_arr) {
+    free(flow_arr);
+}
+
+void flow_write(Flow *flow, int id, int *values) {
+    flow->id = id;
+    for(int i = 0; i < FLOW_DIMENSIONS; i++) {
+        flow->values[i] = values[i];
+    }
+}
+
+double calculate_flow_dist(Flow *flow1, Flow *flow2, double *weights) {
+    double dist = 0;
+    for(int i = 0; i < FLOW_DIMENSIONS; i++) {
+        double value_dist = flow1->values[i] - flow2->values[i];
+        value_dist *= weights[i] * value_dist; // value_dist = weight*(val1 - val2)^2
+        dist += value_dist;
+    }
+    return dist;
+}
+
+FlowDist *get_flow_distances(Flow *flow_arr, int n, double *weights) {
+    int n_fact = factorial(n);
+    FlowDist *dist_arr = calloc( n_fact, sizeof(FlowDist));
+    int idx = 0;
+    for(int i = 0; i < (n - 1); i++) {
+        for(int j = (i + 1); j < n; j++) {
+            dist_arr[idx].id1 = flow_arr[i].id;
+            dist_arr[idx].id2 = flow_arr[j].id;
+            dist_arr[idx].dist = calculate_flow_dist(&flow_arr[i], &flow_arr[j], weights);
+        }
+    }
+    return dist_arr;
+}
+
+void print_flow(Flow *flow) {
+    fprintf(stdout, "Flow ID: %d\n", flow->id);
+    for(int i = 0; i < FLOW_DIMENSIONS; i++) {
+        fprintf(stdout, "   val[%d]: %lf\n", i, flow->values[i]);
+    }
+}
+
+int read_header(FILE *file) {
     int count = 0;
     char line[LINE_SIZE] = "";
     if(fgets(line, sizeof(line), file) == NULL) {
@@ -59,100 +206,64 @@ int data_read_init(FILE *file) {
     return count;
 }
 
-int parse_line(char *line, int *id, Coords *point) {
+
+// Need to edit for different flow dimensions
+int parse_line(char *line, Flow *flow) {
     double packet_count = 0;
     int result = sscanf(line, LINE_FORMAT,
-        id,
-        &point->bytes,
-        &point->time,
+        &flow->id,
+        &flow->values[0],
+        &flow->values[1],
         &packet_count,
-        &point->delay
+        &flow->values[2]
     );
     if(result != 5) {
         fprintf(stderr, "sscanf failed!\n");
-        return result;
+        return EXIT_FAILURE;
     }
     if(packet_count == 0) {
-        point->size = point->bytes;
+        flow->values[3] = flow->values[0];
     } else {
-    point->size = point->bytes / packet_count;
+    flow->values[3] = flow->values[0] / packet_count;
     }
-    return result;
-}
-
-int data_read_line(FILE *file, Flow *flow) {
-    char line[LINE_SIZE] = "";
-    if(fgets(line, sizeof(line), file) == NULL) {
-        fprintf(stderr, "fgets returned NULL\n");
-        return EXIT_FAILURE;
-    }
-    int id = 0;
-    Coords coords;
-    if(parse_line(line, &id, &coords) != 5) {
-        fprintf(stderr, "Line read failed because of failed parse_line!\n");
-        return EXIT_FAILURE;
-    }
-    flow_init(flow, id, coords);
     return EXIT_SUCCESS;
 }
 
-double flow_dist_calc(Flow *flow1, Flow *flow2, Coords w_vect) {
-    double dist_bytes = flow1->val.bytes - flow2->val.bytes;
-    dist_bytes *= dist_bytes;
-    double dist_time = flow1->val.time - flow2->val.time;
-    dist_time *= dist_time;
-    double dist_delay = flow1->val.delay - flow2->val.delay;
-    dist_delay *= dist_delay;
-    double dist_size = flow1->val.size - flow2->val.size;
-    dist_size *= dist_size;
-
-    double dist = w_vect.bytes * dist_bytes + w_vect.time * dist_time +
-                  w_vect.delay * dist_delay + w_vect.size * dist_size;
-    return dist;
+int read_line(FILE *file, Flow *flow) {
+    char line[LINE_SIZE] = "";
+    if(fgets(line, sizeof(line), file) == NULL) {
+        fprintf(stderr, "fgets retunred NULL\n");
+        return EXIT_FAILURE;
+    }
+    if(parse_line(line, flow) != EXIT_SUCCESS) {
+        fprintf(stderr, "parse line did not return exit succes\n");
+        return EXIT_FAILURE;
+    }
+    return EXIT_SUCCESS;
 }
 
-FlowDist *flowdist_arr_ctor(int flow_count) {
-    FlowDist *arr = calloc(factorial(flow_count), sizeof(FlowDist));
-    if(arr == NULL) {
-        fprintf(stderr, "FlowDist array allocation failed!\n");
-        return NULL;
-    }
-    return arr;
-}
-
-FlowDist *find_distances(Flow *flow_arr, Coords w_vect, int count) {
-    FlowDist *arr = flowdist_arr_ctor(count);
-    if(arr == NULL) {
-        fprintf(stderr, "FlowDist array allocation failed!\n");
-        return NULL;
-    }
-    int idx = 0;
-    for(int i = 0; i < count - 1; i++) {
-        for(int j = i + 1; j < count; j++){
-            double dist = flow_dist_calc(&flow_arr[i], &flow_arr[j], w_vect);
-            arr[idx].dist = dist;
-            arr[idx].ids[0] = i;
-            arr[idx].ids[1] = j;
-            idx++;
+int read_data(FILE *file, int flow_count, Flow *flow_arr) {
+    int succesful_reads = 0;
+    for(int i = 0; i < flow_count; i++) {
+        if(read_line(file, &flow_arr[i]) == EXIT_FAILURE) {
+            fprintf(stderr, "Readline failed on line %d\n", i + 2);
+        } else {
+            succesful_reads += 1;
         }
     }
-    return arr;
+    return succesful_reads;
 }
 
 Cluster *cluster_ctor(int capacity) {
-    if(capacity < 1) {
-        fprintf(stderr, "Warning: ctor received size < 1, proceeding with size = 1\n");
-        capacity = 1;
-    }
     Cluster *cluster = malloc(sizeof(Cluster));
-    if(cluster == NULL){
+    if(cluster == NULL) {
         fprintf(stderr, "Cluster allocation failed!\n");
         return NULL;
     }
     cluster->id_arr = calloc(capacity, sizeof(int));
     if(cluster->id_arr == NULL) {
+        fprintf(stderr, "Cluster id_arr allocation failed!\n");
         free(cluster);
-        fprintf(stderr, "Cluster allocation failde, could not allocate id_arr!\n");
         return NULL;
     }
     cluster->capacity = capacity;
@@ -164,171 +275,50 @@ void cluster_dtor(Cluster *cluster) {
     free(cluster);
 }
 
-int cluster_reserve(Cluster *cluster, int capacity) {
-    int *tmp = realloc(cluster->id_arr, capacity * sizeof(int));
-    if(tmp == NULL) {
-        fprintf(stderr, "Error: realloc failed\n");
-        return EXIT_FAILURE;
+Cluster *flow_to_cluster(Flow *flow) {
+    Cluster *cluster = cluster_ctor(1);
+    if(cluster == NULL) {
+        return NULL;
     }
-    cluster->id_arr = tmp;
-    return EXIT_SUCCESS;
-}
-
-void flow_to_cluster(Flow *flow, Cluster *cluster) {
-    cluster->cardinality = 1;
     cluster->id_arr[0] = flow->id;
+    cluster->size = 1;
+    return cluster;
 }
 
-ClusterArr *cluster_array_ctor(int size) {
-    ClusterArr *cluster_arr = malloc(sizeof(ClusterArr));
-    if(cluster_arr == NULL){
-        fprintf(stderr, "ClusterArray allocation failed!\n");
+ClustArr *initialize_clusters(Flow *flow_arr, int flow_count) {
+    ClustArr *cluster_array = malloc(sizeof(ClustArr));
+    if(cluster_array == NULL) {
+        fprintf(stderr, "Cluster array allocation failed!\n");
         return NULL;
     }
-    cluster_arr->arr = calloc(size, sizeof(Cluster));
-    if(cluster_arr->arr == NULL) {
-        fprintf(stderr, "ClusterArray array allocation failed!\n");
-        free(cluster_arr);
+    cluster_array->arr = calloc(flow_count, sizeof(Cluster *));
+    if(cluster_array->arr == NULL) {
+        fprintf(stderr, "Cluster_array array allocation failed!\n");
+        free(cluster_array);
         return NULL;
     }
-    for(int i = 0; i < size; i++) {
-        cluster_arr->arr[i] = cluster_ctor(1);
-        if(cluster_arr->arr[i] == NULL) {
-            for(int j = i - 1; j >= 0; j--) {
-                free(cluster_arr->arr[i]);
-            }
-            free(cluster_arr->arr);
-            free(cluster_arr);
+    cluster_array->capacity = flow_count;
+    for(int i = 0; i < flow_count; i++) {
+        cluster_array->arr[i] = flow_to_cluster(&flow_arr[i]);
+        if(cluster_array->arr[i] == NULL) {
+            fprintf(stderr, "Failed to create cluster from flow at line %d\n", i + 2);
             return NULL;
         }
     }
-    cluster_arr->size = size;
-    return cluster_arr;
+    cluster_array->size = flow_count;
+    return cluster_array;
 }
 
-// Veeeeeery unsafe!!!!
-void int_copy_into(int *src, int *dst, int pos, int count) {
-    for(int i = 0; i < count; i++) {
-        dst[pos + i] = src[i];
-    }
-}
-
-int cluster_merge_into(Cluster *cluster1, Cluster *cluster2) {
-    if(cluster1->capacity < (cluster1->cardinality + cluster2->cardinality)) {
-        if(cluster_reserve(cluster1, cluster1->cardinality + cluster2->cardinality) == EXIT_FAILURE) {
-            return EXIT_FAILURE;
-        }
-    }
-    // Look at this again!!!
-    int_copy_into(cluster2->id_arr, cluster1->id_arr, cluster1->cardinality, cluster2->cardinality);
-    //
-    cluster1->cardinality += cluster2->cardinality;
-    cluster_dtor(cluster2);
-    return EXIT_SUCCESS;
-}
-
-int cluster_arr_fill_holes(ClusterArr *cluster_arr, int hole_id) {
-    cluster_arr->size--;
-    for(int i = hole_id; i < cluster_arr->size; i++) {
-        cluster_arr->arr[i] = cluster_arr->arr[i + 1];
-    }
-    return EXIT_SUCCESS;
-}
-
-void cluster_merge_in_array(ClusterArr *cluster_array, int flow_ids[2]) {
-    int found = 0;
-    int cluster_ids[2];
-    for(int i = 0; found < 2 && i < cluster_array->size; i++) {
-        for(int j = 0; j < cluster_array->arr[i]->cardinality; j++) {
-            int tmp_id = cluster_array->arr[i]->id_arr[j]; 
-            if(tmp_id == flow_ids[0] || tmp_id == flow_ids[1]) {
-                cluster_ids[found] = i;
-                found++;
-            }
-        }
-    }
-    // check return value
-    cluster_merge_into(cluster_array->arr[cluster_ids[0]], cluster_array->arr[cluster_ids[1]]);
-    cluster_arr_fill_holes(cluster_array, cluster_ids[1]);
-}
-
-int find_closest_dist(FlowDist *dist_arr, int count, int *closest_ids) {
-    double min = dist_arr[0].dist;
-    int min_id = 0;
-    for(int i = 1; i < count; i++) {
-        if(dist_arr[i].dist < min && dist_arr[i].dist != (double)-1) {
-            min = dist_arr[i].dist;
-            min_id = i;
-            closest_ids[0] = dist_arr->ids[0];
-            closest_ids[1] = dist_arr->ids[1];
-        }
-    }
-    return min_id;
-}
-
-void merge_closest_in_arr(ClusterArr *clusters, FlowDist *distances, int count) {
-    int closest_flows[2];
-    int dist_id = find_closest_dist(distances, count, closest_flows);
-    cluster_merge_in_array(clusters, closest_flows);
-    distances[dist_id].dist = -1;
-}
-
-void print_clusters(ClusterArr *cluster_array) {
+void print_clusters(ClustArr *clusters) {
     fprintf(stdout, "Clusters:\n");
-    for(int i = 0; i < cluster_array->size; i++) {
-        Cluster *cluster = cluster_array->arr[i];
+    // for each cluster
+    for(int i = 0; i < clusters->size; i++) {
         fprintf(stdout, "Cluster %d:", i);
-        for(int j = 0; j < cluster->cardinality; j++) {
+        // for each id
+        Cluster *cluster = clusters->arr[i];
+        for(int j = 0; j < cluster->size; j++) {
             fprintf(stdout, " %d", cluster->id_arr[j]);
         }
         putchar('\n');
     }
-}
-
-int main(int argc, char **argv) {
-    // DEBUG ///////////////////////////////////////////////////////
-    fprintf(stdout, "Argc: %d\n", argc);
-    for(int i = 0; i < argc; i++) {
-        fprintf(stdout, "Argv[%d]: %s\n", i, argv[i]);
-    }
-
-////////////////////////////////////////////////////////////////////
-
-    if(argc != 2 && argc != 7) {
-        fprintf(stderr, "Invalid input!\n");
-        return EXIT_FAILURE;
-    }
-
-    // initialize clusters
-    FILE *file = fopen(argv[1], "r");
-    if(file == NULL) {
-        fprintf(stderr, "Failed to open file: %s\n", argv[1]);
-        return EXIT_FAILURE;
-    }
-    int count = data_read_init(file);
-    Flow flow_arr[count];
-    ClusterArr *cluster_arr = cluster_array_ctor(count);
-    for(int i = 0; i < count; i++) {
-        data_read_line(file, &flow_arr[i]);
-        flow_to_cluster(&flow_arr[i], cluster_arr->arr[i]);
-    }
-    
-    if(argc == 7) {
-        int f_count = atoi(argv[2]);
-        Coords w_vector = {
-        .bytes = strtod(argv[3], NULL),
-        .time = strtod(argv[4], NULL),
-        .delay = strtod(argv[5], NULL),
-        .size = strtod(argv[6], NULL)
-        };
-        
-        FlowDist *distances = find_distances(flow_arr, w_vector, count);
-        (void)distances;
-        (void)f_count;
-        
-        // join them
-
-    }
-    print_clusters(cluster_arr);
-    return EXIT_SUCCESS;
 }
