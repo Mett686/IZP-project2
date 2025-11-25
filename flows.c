@@ -86,6 +86,47 @@ ClustArr *initialize_clusters(Flow *flow_arr, int flow_count);
 // Prints all clusters in cluster arr
 void print_clusters(ClustArr *clusters);
 
+// find lowest distance between flows and return its idx in dist_arr
+int lowest_dist(FlowDist *dist_arr, int len) {
+    double min = dist_arr[0].dist;
+    int min_id = 0;
+    for(int i = 1; i < len; i++) {
+        double value = dist_arr[i].dist;
+        if(value < min && value >=0) {
+            min = value;
+            min_id = i;
+        }
+    }
+    return min_id;
+}
+
+Cluster *merge_clusters(Cluster *clust1, Cluster *clust2) {
+    int size = clust1->size + clust2->size;
+    Cluster *result = cluster_ctor(size);
+    if(result == NULL) {
+        fprintf(stderr, "Nowhere to merge into\n");
+        return NULL;
+    }
+    result->capacity = size;
+    cluster_dtor(clust1);
+    cluster_dtor(clust2);
+    return result;
+}
+
+int find_flow_id(ClustArr *cluster_arr, int flow_id) {
+    int cluster_id = -1;
+    for(int i = 0; i < cluster_arr->size; i++) {
+        Cluster *cluster = cluster_arr->arr[i];
+        for(int j = 0; j < cluster->size; j++) {
+            if(cluster->id_arr[j] == flow_id) {
+                return i;
+            }
+        }
+    }
+    return -1;
+}
+
+
 
 int main(int argc, char **argv) {
     // DEBUG ///////////////////////////////////////////////////////
