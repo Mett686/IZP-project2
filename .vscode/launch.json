@@ -2,7 +2,7 @@
     "version": "0.2.0",
     "configurations": [
         {
-            "name": "Debug flows default",
+            "name": "Debug data",
             "type": "cppdbg",
             "request": "launch",
             "program": "${workspaceFolder}/flows",
@@ -36,6 +36,34 @@
             "program": "${workspaceFolder}/flows",
             "args": [
                 "data.txt"
+            ],
+            "stopAtEntry": false,
+            "cwd": "${workspaceFolder}",
+            "environment": [],
+            "externalConsole": false,
+            "MIMode": "gdb",
+            "setupCommands": [
+                {
+                    "description": "Enable pretty-printing for gdb",
+                    "text": "-enable-pretty-printing",
+                    "ignoreFailures": true
+                }
+            ],
+            "preLaunchTask": "build flows",
+            "miDebuggerPath": "/usr/bin/gdb"
+        },
+        {
+            "name": "Debug data1",
+            "type": "cppdbg",
+            "request": "launch",
+            "program": "${workspaceFolder}/flows",
+            "args": [
+                "data1.txt",
+                "10",
+                "1.0",
+                "1.0",
+                "1.0",
+                "1.0"
             ],
             "stopAtEntry": false,
             "cwd": "${workspaceFolder}",
