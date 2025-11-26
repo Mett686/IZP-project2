@@ -86,6 +86,13 @@ ClustArr *initialize_clusters(Flow *flow_arr, int flow_count);
 // Prints all clusters in cluster arr
 void print_clusters(ClustArr *clusters);
 
+void print_distances(FlowDist *dist_arr, int len) {
+    for(int i = 0; i < len; i++) {
+        fprintf(stdout,"test\n");
+        fprintf(stdout, "%d: Distance between %d, %d:  %lf\n", i, dist_arr[i].id1, dist_arr[i].id2, dist_arr[i].dist);
+    }
+}
+
 // find lowest distance between flows and return its idx in dist_arr
 int lowest_dist(FlowDist *dist_arr, int len) {
     double min = dist_arr[0].dist;
@@ -107,14 +114,19 @@ Cluster *merge_clusters(Cluster *clust1, Cluster *clust2) {
         fprintf(stderr, "Nowhere to merge into\n");
         return NULL;
     }
-    result->capacity = size;
+    result->size = size;
+    for(int i = 0; i < clust1->size; i++) {
+        result->id_arr[i] = clust1->id_arr[i];
+    }
+    for(int i = 0; i < clust2->size; i++) {
+        result->id_arr[clust1->size + i] = clust2->id_arr[i];
+    }
     cluster_dtor(clust1);
     cluster_dtor(clust2);
     return result;
 }
 
 int find_flow_id(ClustArr *cluster_arr, int flow_id) {
-    int cluster_id = -1;
     for(int i = 0; i < cluster_arr->size; i++) {
         Cluster *cluster = cluster_arr->arr[i];
         for(int j = 0; j < cluster->size; j++) {
@@ -124,6 +136,25 @@ int find_flow_id(ClustArr *cluster_arr, int flow_id) {
         }
     }
     return -1;
+}
+
+void cluster_arr_merge(ClustArr *cluster_arr, int id1, int id2) {
+    cluster_arr->arr[id1] = merge_clusters(cluster_arr->arr[id1], cluster_arr->arr[id2]);
+    for(int i = id2; i < cluster_arr->size - 1; i++) {
+        cluster_arr->arr[i] = cluster_arr->arr[i+1];
+    }
+    cluster_arr->size--;
+}
+
+void merge_next(ClustArr *cluster_arr, FlowDist *dist_arr, int dist_len) {
+    int lowest_id = lowest_dist(dist_arr, dist_len);
+    int f_id1 = dist_arr[lowest_id].id1;
+    int f_id2 = dist_arr[lowest_id].id2;
+    int c_id1 = find_flow_id(cluster_arr, f_id1);
+    int c_id2 = find_flow_id(cluster_arr, f_id2);
+    cluster_arr_merge(cluster_arr, c_id1, c_id2);
+
+    dist_arr[lowest_id].dist = -1;
 }
 
 
@@ -154,7 +185,7 @@ int main(int argc, char **argv) {
 
     ClustArr *cluster_arr = initialize_clusters(flow_arr, flow_count);
     
-    if(argc == 7 && 0) {
+    if(argc == 7) {
         int cluster_count = atoi(argv[ARGV_COUNT_ID]);
         double weights[FLOW_DIMENSIONS];
         for(int i = 0; i < FLOW_DIMENSIONS; i++) {
@@ -163,11 +194,10 @@ int main(int argc, char **argv) {
 
         FlowDist *dist_arr = get_flow_distances(flow_arr, flow_count, weights);
 
-        // REMOVE!!!!
-        (void)cluster_count;
-        (void)weights;
-        (void)dist_arr;
-        /////////////////////////////
+        int merge_count = flow_count - cluster_count;
+        for(int i = 0; i < merge_count; i++) {
+            merge_next(cluster_arr, dist_arr, factorial(flow_count-1));
+        }
 
 
         // join them
@@ -214,14 +244,15 @@ double calculate_flow_dist(Flow *flow1, Flow *flow2, double *weights) {
 }
 
 FlowDist *get_flow_distances(Flow *flow_arr, int n, double *weights) {
-    int n_fact = factorial(n);
-    FlowDist *dist_arr = calloc( n_fact, sizeof(FlowDist));
+    int len = factorial(n-1);
+    FlowDist *dist_arr = calloc( len, sizeof(FlowDist));
     int idx = 0;
     for(int i = 0; i < (n - 1); i++) {
         for(int j = (i + 1); j < n; j++) {
             dist_arr[idx].id1 = flow_arr[i].id;
             dist_arr[idx].id2 = flow_arr[j].id;
             dist_arr[idx].dist = calculate_flow_dist(&flow_arr[i], &flow_arr[j], weights);
+            idx++;
         }
     }
     return dist_arr;
