@@ -88,7 +88,6 @@ void print_clusters(ClustArr *clusters);
 
 void print_distances(FlowDist *dist_arr, int len) {
     for(int i = 0; i < len; i++) {
-        fprintf(stdout,"test\n");
         fprintf(stdout, "%d: Distance between %d, %d:  %lf\n", i, dist_arr[i].id1, dist_arr[i].id2, dist_arr[i].dist);
     }
 }
@@ -107,7 +106,7 @@ int lowest_dist(FlowDist *dist_arr, int len) {
     return min_id;
 }
 
-Cluster *merge_clusters(Cluster *clust1, Cluster *clust2) {
+Cluster *cluster_merge(Cluster *clust1, Cluster *clust2) {
     int size = clust1->size + clust2->size;
     Cluster *result = cluster_ctor(size);
     if(result == NULL) {
@@ -139,22 +138,30 @@ int find_flow_id(ClustArr *cluster_arr, int flow_id) {
 }
 
 void cluster_arr_merge(ClustArr *cluster_arr, int id1, int id2) {
-    cluster_arr->arr[id1] = merge_clusters(cluster_arr->arr[id1], cluster_arr->arr[id2]);
+    cluster_arr->arr[id1] = cluster_merge(cluster_arr->arr[id1], cluster_arr->arr[id2]);
     for(int i = id2; i < cluster_arr->size - 1; i++) {
         cluster_arr->arr[i] = cluster_arr->arr[i+1];
     }
     cluster_arr->size--;
 }
 
-void merge_next(ClustArr *cluster_arr, FlowDist *dist_arr, int dist_len) {
-    int lowest_id = lowest_dist(dist_arr, dist_len);
-    int f_id1 = dist_arr[lowest_id].id1;
-    int f_id2 = dist_arr[lowest_id].id2;
-    int c_id1 = find_flow_id(cluster_arr, f_id1);
-    int c_id2 = find_flow_id(cluster_arr, f_id2);
-    cluster_arr_merge(cluster_arr, c_id1, c_id2);
+void merge_clusters(ClustArr *cluster_arr, FlowDist *dist_arr, int flow_count, int cluster_count) {
+    int merge_count = flow_count - cluster_count;
+    int dist_count = factorial(flow_count - 1);
+    for(int i = 0; i < merge_count; i++) {
+        int lowest_id = lowest_dist(dist_arr, dist_count);
+        int f_id1 = dist_arr[lowest_id].id1;
+        int f_id2 = dist_arr[lowest_id].id2;
 
-    dist_arr[lowest_id].dist = -1;
+        int c_id1 = find_flow_id(cluster_arr, f_id1);
+        int c_id2 = find_flow_id(cluster_arr, f_id2);
+        if(c_id1 != c_id2) {
+        cluster_arr_merge(cluster_arr, c_id1, c_id2);
+        } else {
+            i--;
+        }
+        dist_arr[lowest_id].dist = -1;
+    }
 }
 
 
@@ -193,11 +200,8 @@ int main(int argc, char **argv) {
         }
 
         FlowDist *dist_arr = get_flow_distances(flow_arr, flow_count, weights);
-
-        int merge_count = flow_count - cluster_count;
-        for(int i = 0; i < merge_count; i++) {
-            merge_next(cluster_arr, dist_arr, factorial(flow_count-1));
-        }
+        
+        merge_clusters(cluster_arr, dist_arr, flow_count, cluster_count);
 
 
         // join them
