@@ -36,6 +36,10 @@ typedef struct cluster_array {
 // Recursive calculation of factorial
 int factorial(int n);
 
+int triangular_number(int n) {
+    return (n*(n + 1))/2;
+}
+
 // Allocates array of Flows (or one flow)
 Flow *flow_arr_ctor(int length);
 
@@ -94,11 +98,11 @@ void print_distances(FlowDist *dist_arr, int len) {
 
 // find lowest distance between flows and return its idx in dist_arr
 int lowest_dist(FlowDist *dist_arr, int len) {
-    double min = dist_arr[0].dist;
-    int min_id = 0;
-    for(int i = 1; i < len; i++) {
+    double min = -1;
+    int min_id = -1;
+    for(int i = 0; i < len; i++) {
         double value = dist_arr[i].dist;
-        if(value < min && value >=0) {
+        if((value != -1) && (value <= min || min_id == -1)) {
             min = value;
             min_id = i;
         }
@@ -147,7 +151,7 @@ void cluster_arr_merge(ClustArr *cluster_arr, int id1, int id2) {
 
 void merge_clusters(ClustArr *cluster_arr, FlowDist *dist_arr, int flow_count, int cluster_count) {
     int merge_count = flow_count - cluster_count;
-    int dist_count = factorial(flow_count - 1);
+    int dist_count = triangular_number(flow_count-1);
     for(int i = 0; i < merge_count; i++) {
         int lowest_id = lowest_dist(dist_arr, dist_count);
         int f_id1 = dist_arr[lowest_id].id1;
@@ -176,7 +180,7 @@ int main(int argc, char **argv) {
     #endif
     ////////////////////////////////////////////////////////////////
 
-    if(argc != 2 && argc != 7) {
+    if( (argc != 2 && argc != 7)) {
         fprintf(stderr, "Invalid input!\n");
         return EXIT_FAILURE;
     }
@@ -194,6 +198,10 @@ int main(int argc, char **argv) {
     
     if(argc == 7) {
         int cluster_count = atoi(argv[ARGV_COUNT_ID]);
+        if(cluster_count < 1) {
+            fprintf(stderr, "Number of clusters on output must be at least 1!");
+            return EXIT_FAILURE;
+        }
         double weights[FLOW_DIMENSIONS];
         for(int i = 0; i < FLOW_DIMENSIONS; i++) {
             weights[i] = strtod(argv[ARGV_WEIGHTS_ID + i], NULL);
@@ -248,7 +256,7 @@ double calculate_flow_dist(Flow *flow1, Flow *flow2, double *weights) {
 }
 
 FlowDist *get_flow_distances(Flow *flow_arr, int n, double *weights) {
-    int len = factorial(n-1);
+    int len = triangular_number(n-1);
     FlowDist *dist_arr = calloc( len, sizeof(FlowDist));
     int idx = 0;
     for(int i = 0; i < (n - 1); i++) {
@@ -389,7 +397,7 @@ void print_clusters(ClustArr *clusters) {
     fprintf(stdout, "Clusters:\n");
     // for each cluster
     for(int i = 0; i < clusters->size; i++) {
-        fprintf(stdout, "Cluster %d:", i);
+        fprintf(stdout, "cluster %d:", i);
         // for each id
         Cluster *cluster = clusters->arr[i];
         for(int j = 0; j < cluster->size; j++) {
