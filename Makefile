@@ -12,3 +12,5 @@ test1:
 
 clean:
 	rm -f flows
+	rm -f out*.txt
+	rm -f data_*.txt
