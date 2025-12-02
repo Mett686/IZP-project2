@@ -185,20 +185,16 @@ void cluster_arr_merge(ClustArr *cluster_arr, int id1, int id2) {
 // Merges clusters till theres only cluster_count of them
 void merge_clusters(ClustArr *cluster_arr, FlowDist *dist_arr, int flow_count, int cluster_count) {
     int merge_count = flow_count - cluster_count;
-    int dist_count = triangular_number(flow_count-1);
     for(int i = 0; i < merge_count; i++) {
-        int lowest_id = lowest_dist(dist_arr, dist_count);
-        int f_id1 = dist_arr[lowest_id].id1;
-        int f_id2 = dist_arr[lowest_id].id2;
 
-        int c_id1 = find_flow_id(cluster_arr, f_id1);
-        int c_id2 = find_flow_id(cluster_arr, f_id2);
+
+        int c_id1 = find_flow_id(cluster_arr, dist_arr[i].id1);
+        int c_id2 = find_flow_id(cluster_arr, dist_arr[i].id2);
         if(c_id1 != c_id2) {
         cluster_arr_merge(cluster_arr, c_id1, c_id2);
         } else {
             i--;
         }
-        dist_arr[lowest_id].dist = -1;
     }
 }
 
@@ -209,20 +205,35 @@ int cmp_flow_id(const void *flow1, const void *flow2) {
     return flow1_p->id - flow2_p->id;
 }
 
-
-/*
+#if 1
 FlowDist *create_instructions(FlowDist *dist_arr, int flow_count, int merge_count) {
     FlowDist *inst = calloc(merge_count, sizeof(FlowDist));
     if(inst == NULL) {
         fprintf(stderr, "FlowDist instruction array allocation failed!\n");
         return NULL;
     }
+    int dist_count = triangular_number(flow_count-1);
     int inst_id = 0;
-    for(int i = 0; i < merge_count; i++) {
-        //todo
+
+    for(int i = 0; i < dist_count; i++) {
+        double value = dist_arr[i].dist;
+
+        // If value is lower than that of biggest member
+        if(value < inst[inst_id].dist || i < merge_count) {
+            // iterate from end
+            int j = inst_id;
+            while(j > 0 && value < inst[j-1].dist) {
+                inst[j] = inst[j-1];
+                j--;
+            }
+            inst[j] = dist_arr[i];
+            if(inst_id < merge_count-1) inst_id++;
+        }
     }
+    return inst;
 }
-*/
+#endif
+
 
 
 int main(int argc, char **argv) {
@@ -264,10 +275,11 @@ int main(int argc, char **argv) {
         // Calculate distances between all flows and store them in dist_arr
         FlowDist *dist_arr = get_flow_distances(flow_arr, flow_count, weights);
         // Crete instruction set
-
+        FlowDist *instructions = create_instructions(dist_arr, flow_count, flow_count-cluster_count);
+        (void)instructions;
 
         // Merge cluster
-        merge_clusters(cluster_arr, dist_arr, flow_count, cluster_count);
+        merge_clusters(cluster_arr, instructions, flow_count, cluster_count);
     }
 
     print_clusters(cluster_arr);

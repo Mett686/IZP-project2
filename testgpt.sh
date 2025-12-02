@@ -119,7 +119,8 @@ generate_big_data() {
     local count="$2"
     echo "Generuji data ($count záznamů)..."
     echo "count=$count" > "$filename"
-    for ((i=1; i<=count; i++)); do
+    local i=1
+    while [ "$i" -le "$count" ]; do
         local b=$(( 1000 + (i * 17 % 5000) ))
         local t=$(( 5 + (i % 50) ))
         local pkts=$(( 5 + (i % 20) ))
@@ -127,6 +128,7 @@ generate_big_data() {
         local d=$(printf "0.%02d" $d_raw)
         local ip_suffix=$(( i % 255 ))
         echo "$i 10.0.0.$ip_suffix 10.0.1.$ip_suffix $b $t $pkts $d" >> "$filename"
+        i=$((i + 1))
     done
 }
 
