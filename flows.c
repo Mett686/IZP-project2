@@ -66,7 +66,7 @@ double calculate_flow_dist(Flow *flow1, Flow *flow2, double *weights);
 // needs to have dimensions defined
 FlowDist *get_flow_distances(Flow *flow_arr, int n, double *weights);
 
-// Prints flow
+// Prints flow DEBUG
 void print_flows(Flow *flow_arr, int len);
 
 // Reads header from file, returning number of flows in file
@@ -74,7 +74,7 @@ int read_header(FILE *file);
 
 // Parses string into flow
 // Need to edit for different flow dimensions
-int parse_line(char *line, Flow *flow);
+int save_line(char *line, Flow *flow);
 
 // Reads file line and parses its contents into flow
 int read_line(FILE *file, Flow *flow);
@@ -94,6 +94,14 @@ Cluster *flow_to_cluster(Flow *flow);
 // Allocates cluster array and fills it with flow to cluster,
 // executed on given flow_arr
 ClustArr *initialize_clusters(Flow *flow_arr, int flow_count);
+
+void cluster_array_dtor(ClustArr *cluster_arr) {
+    for(int i = 0; i < cluster_arr->size; i++) {
+        cluster_dtor(cluster_arr->arr[i]);
+    }
+    free(cluster_arr->arr);
+    free(cluster_arr);
+}
 
 // Prints all clusters in cluster arr
 void print_clusters(ClustArr *clusters);
@@ -225,25 +233,21 @@ int main(int argc, char **argv) {
     }
     int flow_count = read_header(file);
     
-    // Read data from file
+    // Read data from file into flow_arr
     Flow *flow_arr = flow_arr_ctor(flow_count);
     if(read_data(file, flow_count, flow_arr) == 0) {
         fprintf(stderr, "Error, read 0 lines from file!\n");
         return EXIT_FAILURE;
     }
-
     fclose(file);
 
-    // Sort flows by ids and then initialize clusters that will be correctly ordered
+    // Sort flows by ids and then initialize clusters
     qsort(flow_arr, flow_count, sizeof(Flow), cmp_flow_id);
     ClustArr *cluster_arr = initialize_clusters(flow_arr, flow_count);
-    
 
-    // If merging should take place
     if(argc == 7) {
-        // Check for correct input
+        // Check for correct cluster count argument
         int cluster_count = atoi(argv[ARGV_COUNT_ID]);
-        int dist_count = triangular_number(flow_count - 1);
         if(cluster_count < 1) {
             fprintf(stderr, "Number of clusters on output must be at least 1!");
             return EXIT_FAILURE;
@@ -255,19 +259,18 @@ int main(int argc, char **argv) {
         }
 
         // Calculate distances between all flows and store them in dist_arr
+        int dist_count = triangular_number(flow_count - 1);
         FlowDist *dist_arr = get_flow_distances(flow_arr, flow_count, weights);
+        // Ordered them based on their value
         qsort(dist_arr, dist_count, sizeof(FlowDist), cmp_flow_dist);
 
         // Merge clusters
-        int merge_count = flow_count - cluster_count;
         int dist_idx = 0;
-        for(int i = 0; i < merge_count; i++) {
+        while(cluster_arr->size > cluster_count) {
             int c_id1 = find_flow_id(cluster_arr, dist_arr[dist_idx].id1);
             int c_id2 = find_flow_id(cluster_arr, dist_arr[dist_idx].id2);
             if(c_id1 != c_id2) {
             cluster_arr_merge(cluster_arr, c_id1, c_id2);
-            } else {
-                i--;
             }
             dist_idx++;
         }
@@ -275,16 +278,12 @@ int main(int argc, char **argv) {
 
     }
 
+    // Print result
     print_clusters(cluster_arr);
 
+    // Cleanup
     free(flow_arr);
-
-    for(int i = 0; i < cluster_arr->size; i++) {
-        cluster_dtor(cluster_arr->arr[i]);
-    }
-    free(cluster_arr->arr);
-    free(cluster_arr);
-
+    cluster_array_dtor(cluster_arr);
 
     return EXIT_SUCCESS;
 }
@@ -365,7 +364,7 @@ int read_header(FILE *file) {
 
 
 // Need to edit for different flow dimensions
-int parse_line(char *line, Flow *flow) {
+int save_line(char *line, Flow *flow) {
     double packet_count = 0;
     int result = sscanf(line, LINE_FORMAT,
         &flow->id,
@@ -392,9 +391,22 @@ int read_line(FILE *file, Flow *flow) {
         fprintf(stderr, "fgets retunred NULL\n");
         return EXIT_FAILURE;
     }
-    if(parse_line(line, flow) != EXIT_SUCCESS) {
-        fprintf(stderr, "parse line did not return exit succes\n");
+    double packet_count = 0;
+    int result = sscanf(line, LINE_FORMAT,
+        &flow->id,
+        &flow->values[0],
+        &flow->values[1],
+        &packet_count,
+        &flow->values[2]
+    );
+    if(result != 5) {
+        fprintf(stderr, "sscanf failed!\n");
         return EXIT_FAILURE;
+    }
+    if(packet_count == 0) {
+        flow->values[3] = flow->values[0];
+    } else {
+    flow->values[3] = flow->values[0] / packet_count;
     }
     return EXIT_SUCCESS;
 }
