@@ -10,6 +10,9 @@ test:
 test1:
 	./flows data.txt
 
+valgrind: flows
+	valgrind ./flows ./data.txt 2 1 1 1 1
+
 clean:
 	rm -f flows
 	rm -f out*.txt
