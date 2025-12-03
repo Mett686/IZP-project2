@@ -4,10 +4,10 @@ LDLIBS = -lm
 
 flows: flows.c
 
-test:
+test: flows
 	./flows data.txt 2 1.0 1.0 1.0 1.0
 
-test1:
+test1: flows
 	./flows data.txt
 
 valgrind: flows

@@ -14,8 +14,8 @@
 #define ARGV_WEIGHTS_ID 3 // Position in argv where weights for euclidian distance are stored
 #define LINE_FORMAT "%d %*s %*s %lf %lf %lf %lf" // Format of one entry in data, ignores both IPs ( %*s )
 
-// Contains flow id which must be unique
-// and values we are interested in comparing
+// Contains unique flow id
+// and values
 typedef struct flow {
     int id;
     double values[FLOW_DIMENSIONS];
@@ -43,19 +43,15 @@ typedef struct cluster_array {
 } ClustArr;
 
 // Calculates triangular number
-// Needed for calculating number of distances between flows
 int triangular_number(int n) {
     return (n*(n + 1))/2;
 }
 
-// Allocates array of Flows (or one flow)
+// Allocates array of Flows
 Flow *flow_arr_ctor(int length);
 
 // Frees Flow (just free)
 void flow_arr_dtor(Flow *flow_arr);
-
-// Writes values into flow
-void flow_write(Flow *flow, int id, int *values);
 
 // Colculates weighted euclidean distance between two flows
 // needs to have dimensions defined
@@ -66,20 +62,14 @@ double calculate_flow_dist(Flow *flow1, Flow *flow2, double *weights);
 // needs to have dimensions defined
 FlowDist *get_flow_distances(Flow *flow_arr, int n, double *weights);
 
-// Prints flow DEBUG
-void print_flows(Flow *flow_arr, int len);
-
 // Reads header from file, returning number of flows in file
 int read_header(FILE *file);
 
-// Parses string into flow
-// Need to edit for different flow dimensions
-int save_line(char *line, Flow *flow);
-
-// Reads file line and parses its contents into flow
+// Reads file line and saves its contents into flow
 int read_line(FILE *file, Flow *flow);
 
 // Reads data from file into flow_arr
+// returns number of lines read
 int read_data(FILE *file, int flow_count, Flow *flow_arr);
 
 // Allocates cluster with given capacity
@@ -91,131 +81,32 @@ void cluster_dtor(Cluster *cluster);
 // Allocates and fills cluster with id from flow
 Cluster *flow_to_cluster(Flow *flow);
 
-// Allocates cluster array and fills it with flow to cluster,
-// executed on given flow_arr
+// Allocates cluster array
+// fills it with flows
 ClustArr *initialize_clusters(Flow *flow_arr, int flow_count);
 
-void cluster_array_dtor(ClustArr *cluster_arr) {
-    for(int i = 0; i < cluster_arr->size; i++) {
-        cluster_dtor(cluster_arr->arr[i]);
-    }
-    free(cluster_arr->arr);
-    free(cluster_arr);
-}
+// Frees ClustArr
+void cluster_array_dtor(ClustArr *cluster_arr);
 
 // Prints all clusters in cluster arr
 void print_clusters(ClustArr *clusters);
 
-// Prints distances
-void print_distances(FlowDist *dist_arr, int len) {
-    for(int i = 0; i < len; i++) {
-        fprintf(stdout, "%d: Distance between %d, %d:  %lf\n", i, dist_arr[i].id1, dist_arr[i].id2, dist_arr[i].dist);
-    }
-}
-
-// find lowest distance between flows and return its idx in dist_arr
-int lowest_dist(FlowDist *dist_arr, int len) {
-    double min = -1;
-    int min_id = -1;
-    for(int i = 0; i < len; i++) {
-        double value = dist_arr[i].dist;
-        if((value != -1) && (value <= min || min_id == -1)) {
-            min = value;
-            min_id = i;
-        }
-    }
-    return min_id;
-}
-
 // Merges two clusters into new cluster while dtoring the originals
-Cluster *cluster_merge(Cluster *clust1, Cluster *clust2) {
-    int size = clust1->size + clust2->size;
-    Cluster *result = cluster_ctor(size);
-    if(result == NULL) {
-        fprintf(stderr, "Nowhere to merge into\n");
-        return NULL;
-    }
-    result->size = size;
-    int idx1 = 0;
-    int idx2 = 0;
-    while((idx1 + idx2) < size) {
-        int id1;
-        int id2;
-        if(idx1 < clust1->size) {
-            id1 = clust1->id_arr[idx1];
-        }
-        if(idx2 < clust2->size) {
-            id2 = clust2->id_arr[idx2];
-        }
-        if(idx1 == clust1->size) {
-            result->id_arr[idx1+idx2] = id2;
-            idx2++;
-            continue;
-        }
-        if(idx2 == clust2->size) {
-            result->id_arr[idx1+idx2] = id1;
-            idx1++;
-            continue;
-        }
-        if(id1 < id2) {
-            result->id_arr[idx1+idx2] = id1;
-            idx1++;
-        } else {
-            result->id_arr[idx1+idx2] = id2;
-            idx2++;
-        }
-
-    }
-    cluster_dtor(clust1);
-    cluster_dtor(clust2);
-    return result;
-}
+Cluster *cluster_merge(Cluster *clust1, Cluster *clust2);
 
 // Return index of cluster containing flow_id 
-int find_flow_id(ClustArr *cluster_arr, int flow_id) {
-    for(int i = 0; i < cluster_arr->size; i++) {
-        Cluster *cluster = cluster_arr->arr[i];
-        for(int j = 0; j < cluster->size; j++) {
-            if(cluster->id_arr[j] == flow_id) {
-                return i;
-            } else if(flow_id < cluster->id_arr[j]) {
-                j=cluster->size;
-            }
-        }
-    }
-    return -1;
-}
+int find_flow_id(ClustArr *cluster_arr, int flow_id);
 
 // Merges two clusters on given position in array storing it on id1
-void cluster_arr_merge(ClustArr *cluster_arr, int id1, int id2) {
-     if(id1 > id2) {
-        int tmp = id1;
-        id1 = id2;
-        id2 = tmp;
-     }
-    cluster_arr->arr[id1] = cluster_merge(cluster_arr->arr[id1], cluster_arr->arr[id2]);
-    // move clusters to fill empty space
-    for(int i = id2; i < cluster_arr->size - 1; i++) {
-        cluster_arr->arr[i] = cluster_arr->arr[i+1];
-    }
-    cluster_arr->size--;
-}
+void cluster_arr_merge(ClustArr *cluster_arr, int id1, int id2);
 
 // Compares flow ids and returns their delta
-int cmp_flow_id(const void *flow1, const void *flow2) {
-    const Flow *flow1_p = (const Flow *)flow1;
-    const Flow *flow2_p = (const Flow *)flow2;
-    return flow1_p->id - flow2_p->id;
-}
+int cmp_flow_id(const void *flow1, const void *flow2);
 
-int cmp_flow_dist(const void *dist1, const void *dist2) {
-    const FlowDist *dist1_p = (const FlowDist *)dist1;
-    const FlowDist *dist2_p = (const FlowDist *)dist2;
-    return (int)(dist1_p->dist - dist2_p->dist);
-}
+// Compares distances of flows
+int cmp_flow_dist(const void *dist1, const void *dist2);
 
 
-//======================================================================================
 // MAIN
 //======================================================================================
 int main(int argc, char **argv) {
@@ -235,7 +126,8 @@ int main(int argc, char **argv) {
     
     // Read data from file into flow_arr
     Flow *flow_arr = flow_arr_ctor(flow_count);
-    if(read_data(file, flow_count, flow_arr) == 0) {
+    flow_count = read_data(file, flow_count, flow_arr);
+    if(flow_count == 0) {
         fprintf(stderr, "Error, read 0 lines from file!\n");
         return EXIT_FAILURE;
     }
@@ -258,13 +150,13 @@ int main(int argc, char **argv) {
             weights[i] = strtod(argv[ARGV_WEIGHTS_ID + i], NULL);
         }
 
-        // Calculate distances between all flows and store them in dist_arr
+        // Calculate distances between all flows
         int dist_count = triangular_number(flow_count - 1);
         FlowDist *dist_arr = get_flow_distances(flow_arr, flow_count, weights);
         // Ordered them based on their value
         qsort(dist_arr, dist_count, sizeof(FlowDist), cmp_flow_dist);
 
-        // Merge clusters
+        // Merge clusters untill theres correct ammount
         int dist_idx = 0;
         while(cluster_arr->size > cluster_count) {
             int c_id1 = find_flow_id(cluster_arr, dist_arr[dist_idx].id1);
@@ -274,23 +166,18 @@ int main(int argc, char **argv) {
             }
             dist_idx++;
         }
-        free(dist_arr);
 
+        free(dist_arr);
     }
 
     // Print result
     print_clusters(cluster_arr);
 
     // Cleanup
-    free(flow_arr);
+    flow_arr_dtor(flow_arr);
     cluster_array_dtor(cluster_arr);
 
     return EXIT_SUCCESS;
-}
-
-int factorial(int n) {
-    if(n == 0) return 1;
-    return n*factorial(n-1);
 }
 
 Flow *flow_arr_ctor(int length) {
@@ -306,13 +193,6 @@ void flow_arr_dtor(Flow *flow_arr) {
     free(flow_arr);
 }
 
-void flow_write(Flow *flow, int id, int *values) {
-    flow->id = id;
-    for(int i = 0; i < FLOW_DIMENSIONS; i++) {
-        flow->values[i] = values[i];
-    }
-}
-
 double calculate_flow_dist(Flow *flow1, Flow *flow2, double *weights) {
     double dist = 0;
     for(int i = 0; i < FLOW_DIMENSIONS; i++) {
@@ -324,10 +204,10 @@ double calculate_flow_dist(Flow *flow1, Flow *flow2, double *weights) {
 }
 
 FlowDist *get_flow_distances(Flow *flow_arr, int flow_count, double *weights) {
-    int len = triangular_number(flow_count-1);
-    FlowDist *dist_arr = calloc( len, sizeof(FlowDist));
+    int dist_count = triangular_number(flow_count-1);
+    FlowDist *dist_arr = calloc(dist_count, sizeof(FlowDist));
     int idx = 0;
-    // for each combination of flows
+    // For each pair of flows
     for(int i = 0; i < (flow_count - 1); i++) {
         for(int j = (i + 1); j < flow_count; j++) {
             // Calculate and store distance
@@ -338,15 +218,6 @@ FlowDist *get_flow_distances(Flow *flow_arr, int flow_count, double *weights) {
         }
     }
     return dist_arr;
-}
-
-void print_flows(Flow *flow_arr, int len) {
-    for(int i = 0; i < len; i++) {
-        fprintf(stdout, "Flow ID: %d\n", flow_arr[i].id);
-        for(int j = 0; j < FLOW_DIMENSIONS; j++) {
-            fprintf(stdout, "   val[%d]: %lf\n", i, flow_arr[i].values[j]);
-        }
-    }
 }
 
 int read_header(FILE *file) {
@@ -362,35 +233,13 @@ int read_header(FILE *file) {
     return count;
 }
 
-
-// Need to edit for different flow dimensions
-int save_line(char *line, Flow *flow) {
-    double packet_count = 0;
-    int result = sscanf(line, LINE_FORMAT,
-        &flow->id,
-        &flow->values[0],
-        &flow->values[1],
-        &packet_count,
-        &flow->values[2]
-    );
-    if(result != 5) {
-        fprintf(stderr, "sscanf failed!\n");
-        return EXIT_FAILURE;
-    }
-    if(packet_count == 0) {
-        flow->values[3] = flow->values[0];
-    } else {
-    flow->values[3] = flow->values[0] / packet_count;
-    }
-    return EXIT_SUCCESS;
-}
-
 int read_line(FILE *file, Flow *flow) {
     char line[LINE_SIZE] = "";
     if(fgets(line, sizeof(line), file) == NULL) {
         fprintf(stderr, "fgets retunred NULL\n");
         return EXIT_FAILURE;
     }
+    // We need avg. packet size, need to calculate that
     double packet_count = 0;
     int result = sscanf(line, LINE_FORMAT,
         &flow->id,
@@ -400,14 +249,14 @@ int read_line(FILE *file, Flow *flow) {
         &flow->values[2]
     );
     if(result != 5) {
-        fprintf(stderr, "sscanf failed!\n");
+        fprintf(stderr, "sscanf read less tha it should!\n");
         return EXIT_FAILURE;
     }
+    // 
     if(packet_count == 0) {
-        flow->values[3] = flow->values[0];
-    } else {
-    flow->values[3] = flow->values[0] / packet_count;
+        packet_count = 1;
     }
+    flow->values[3] = flow->values[0] / packet_count;
     return EXIT_SUCCESS;
 }
 
@@ -415,7 +264,7 @@ int read_data(FILE *file, int flow_count, Flow *flow_arr) {
     int succesful_reads = 0;
     for(int i = 0; i < flow_count; i++) {
         if(read_line(file, &flow_arr[i]) == EXIT_FAILURE) {
-            fprintf(stderr, "Readline failed on line %d\n", i + 2);
+            fprintf(stderr, "Readline failed on line %d\n", i + 2); // i + 2 because of header
         } else {
             succesful_reads += 1;
         }
@@ -467,27 +316,129 @@ ClustArr *initialize_clusters(Flow *flow_arr, int flow_count) {
         return NULL;
     }
     cluster_array->capacity = flow_count;
+    cluster_array->size = 0;
     for(int i = 0; i < flow_count; i++) {
         cluster_array->arr[i] = flow_to_cluster(&flow_arr[i]);
         if(cluster_array->arr[i] == NULL) {
             fprintf(stderr, "Failed to create cluster from flow at line %d\n", i + 2);
+            cluster_array_dtor(cluster_array);
             return NULL;
         }
+        cluster_array->size++;
     }
-    cluster_array->size = flow_count;
     return cluster_array;
+}
+
+void cluster_array_dtor(ClustArr *cluster_arr) {
+    for(int i = 0; i < cluster_arr->size; i++) {
+        cluster_dtor(cluster_arr->arr[i]);
+    }
+    free(cluster_arr->arr);
+    free(cluster_arr);
 }
 
 void print_clusters(ClustArr *clusters) {
     fprintf(stdout, "Clusters:\n");
-    // for each cluster
     for(int i = 0; i < clusters->size; i++) {
         fprintf(stdout, "cluster %d:", i);
-        // for each id
+
         Cluster *cluster = clusters->arr[i];
         for(int j = 0; j < cluster->size; j++) {
             fprintf(stdout, " %d", cluster->id_arr[j]);
         }
         putchar('\n');
     }
+}
+
+Cluster *cluster_merge(Cluster *clust1, Cluster *clust2) {
+    int size = clust1->size + clust2->size;
+    Cluster *result = cluster_ctor(size);
+    if(result == NULL) {
+        fprintf(stderr, "Cluster merge failed, nowhere to merge into\n");
+        return NULL;
+    }
+    result->size = size;
+    
+    // Read indexes
+    int idx1 = 0;
+    int idx2 = 0;
+    // Merge clusters so that they stay ordered
+    while((idx1 + idx2) < size) {
+        int id1;
+        int id2;
+        // Prevent unwanted memmory access
+        if(idx1 < clust1->size) {
+            id1 = clust1->id_arr[idx1];
+        }
+        if(idx2 < clust2->size) {
+            id2 = clust2->id_arr[idx2];
+        }
+        // If one array is allready read
+        if(idx1 == clust1->size) {
+            result->id_arr[idx1+idx2] = id2;
+            idx2++;
+            continue;
+        }
+        if(idx2 == clust2->size) {
+            result->id_arr[idx1+idx2] = id1;
+            idx1++;
+            continue;
+        }
+        // Write lower of the values
+        if(id1 < id2) {
+            result->id_arr[idx1+idx2] = id1;
+            idx1++;
+        } else {
+            result->id_arr[idx1+idx2] = id2;
+            idx2++;
+        }
+
+    }
+    cluster_dtor(clust1);
+    cluster_dtor(clust2);
+    return result;
+}
+
+int find_flow_id(ClustArr *cluster_arr, int flow_id) {
+    for(int i = 0; i < cluster_arr->size; i++) {
+        Cluster *cluster = cluster_arr->arr[i];
+        for(int j = 0; j < cluster->size; j++) {
+            if(cluster->id_arr[j] == flow_id) {
+                return i;
+            } else if(flow_id < cluster->id_arr[j]) {
+                j=cluster->size;
+            }
+        }
+    }
+    return -1;
+}
+
+void cluster_arr_merge(ClustArr *cluster_arr, int id1, int id2) {
+    // Make sure cluster_arr stays ordered
+    if(id1 > id2) {
+        int tmp = id1;
+        id1 = id2;
+        id2 = tmp;
+    }
+    cluster_arr->arr[id1] = cluster_merge(cluster_arr->arr[id1], cluster_arr->arr[id2]);
+    // move clusters to fill empty space after id2
+    for(int i = id2; i < cluster_arr->size - 1; i++) {
+        cluster_arr->arr[i] = cluster_arr->arr[i+1];
+    }
+    cluster_arr->size--;
+}
+
+int cmp_flow_id(const void *flow1, const void *flow2) {
+    const Flow *flow1_p = (const Flow *)flow1;
+    const Flow *flow2_p = (const Flow *)flow2;
+    return flow1_p->id - flow2_p->id;
+}
+
+int cmp_flow_dist(const void *dist1, const void *dist2) {
+    const FlowDist *dist1_p = (const FlowDist *)dist1;
+    const FlowDist *dist2_p = (const FlowDist *)dist2;
+    if(dist1_p->dist < dist2_p->dist) {
+        return -1;
+    }
+    return 1;
 }
