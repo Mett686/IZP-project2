@@ -131,8 +131,14 @@ Cluster *cluster_merge(Cluster *clust1, Cluster *clust2) {
     int idx1 = 0;
     int idx2 = 0;
     while((idx1 + idx2) < size) {
-        int id1 = clust1->id_arr[idx1];
-        int id2 = clust2->id_arr[idx2];
+        int id1;
+        int id2;
+        if(idx1 < clust1->size) {
+            id1 = clust1->id_arr[idx1];
+        }
+        if(idx2 < clust2->size) {
+            id2 = clust2->id_arr[idx2];
+        }
         if(idx1 == clust1->size) {
             result->id_arr[idx1+idx2] = id2;
             idx2++;
@@ -200,6 +206,10 @@ int cmp_flow_dist(const void *dist1, const void *dist2) {
     return (int)(dist1_p->dist - dist2_p->dist);
 }
 
+
+//======================================================================================
+// MAIN
+//======================================================================================
 int main(int argc, char **argv) {
     // Check for correct arguments
     if( (argc != 2 && argc != 7)) {
@@ -222,9 +232,12 @@ int main(int argc, char **argv) {
         return EXIT_FAILURE;
     }
 
+    fclose(file);
+
     // Sort flows by ids and then initialize clusters that will be correctly ordered
     qsort(flow_arr, flow_count, sizeof(Flow), cmp_flow_id);
     ClustArr *cluster_arr = initialize_clusters(flow_arr, flow_count);
+    
 
     // If merging should take place
     if(argc == 7) {
@@ -258,9 +271,21 @@ int main(int argc, char **argv) {
             }
             dist_idx++;
         }
+        free(dist_arr);
+
     }
 
     print_clusters(cluster_arr);
+
+    free(flow_arr);
+
+    for(int i = 0; i < cluster_arr->size; i++) {
+        cluster_dtor(cluster_arr->arr[i]);
+    }
+    free(cluster_arr->arr);
+    free(cluster_arr);
+
+
     return EXIT_SUCCESS;
 }
 
@@ -299,12 +324,14 @@ double calculate_flow_dist(Flow *flow1, Flow *flow2, double *weights) {
     return dist;
 }
 
-FlowDist *get_flow_distances(Flow *flow_arr, int n, double *weights) {
-    int len = triangular_number(n-1);
+FlowDist *get_flow_distances(Flow *flow_arr, int flow_count, double *weights) {
+    int len = triangular_number(flow_count-1);
     FlowDist *dist_arr = calloc( len, sizeof(FlowDist));
     int idx = 0;
-    for(int i = 0; i < (n - 1); i++) {
-        for(int j = (i + 1); j < n; j++) {
+    // for each combination of flows
+    for(int i = 0; i < (flow_count - 1); i++) {
+        for(int j = (i + 1); j < flow_count; j++) {
+            // Calculate and store distance
             dist_arr[idx].id1 = flow_arr[i].id;
             dist_arr[idx].id2 = flow_arr[j].id;
             dist_arr[idx].dist = calculate_flow_dist(&flow_arr[i], &flow_arr[j], weights);
