@@ -1,8 +1,3 @@
-// TODO
-// check for duplicit flows IDs
-// sort output, maybe?
-// revisit merging
-
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
