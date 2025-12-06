@@ -48,8 +48,8 @@ Flow *flow_arr_ctor(int length);
 // Frees Flow (just free)
 void flow_arr_dtor(Flow *flow_arr);
 
-// Colculates weighted euclidean distance between two flows
-// needs to have dimensions defined
+// Colculates weighted squared euclidean distance between two flows
+// needs to have flow_dimensions defined
 double calculate_flow_dist(Flow *flow1, Flow *flow2, double *weights);
 
 // Creates array of FlowDist types that stores distances between all Flows in flow_arr
@@ -61,6 +61,7 @@ FlowDist *get_flow_distances(Flow *flow_arr, int n, double *weights);
 int read_header(FILE *file);
 
 // Reads file line and saves its contents into flow
+// after editing line format you need to change arguments in sscanf()
 int read_line(FILE *file, Flow *flow);
 
 // Reads data from file into flow_arr
@@ -156,6 +157,9 @@ int main(int argc, char **argv) {
         while(cluster_arr->size > cluster_count) {
             int c_id1 = find_flow_id(cluster_arr, dist_arr[dist_idx].id1);
             int c_id2 = find_flow_id(cluster_arr, dist_arr[dist_idx].id2);
+            if(c_id1 == -1 || c_id2 == -1) {
+                fprintf(stderr, "find_flow_id failed!");
+            }
             if(c_id1 != c_id2) {
             cluster_arr_merge(cluster_arr, c_id1, c_id2);
             }
@@ -234,7 +238,7 @@ int read_line(FILE *file, Flow *flow) {
         fprintf(stderr, "fgets retunred NULL\n");
         return EXIT_FAILURE;
     }
-    // We need avg. packet size, need to calculate that
+    // We need to calculate avg. packet size
     double packet_count = 0;
     int result = sscanf(line, LINE_FORMAT,
         &flow->id,
@@ -395,13 +399,14 @@ Cluster *cluster_merge(Cluster *clust1, Cluster *clust2) {
 }
 
 int find_flow_id(ClustArr *cluster_arr, int flow_id) {
-    for(int i = 0; i < cluster_arr->size; i++) {
+    // Iterate from end so that we can take better advantage of the sorted values
+    for(int i = cluster_arr->size - 1; i >= 0; i--) {
         Cluster *cluster = cluster_arr->arr[i];
         for(int j = 0; j < cluster->size; j++) {
             if(cluster->id_arr[j] == flow_id) {
                 return i;
             } else if(flow_id < cluster->id_arr[j]) {
-                j=cluster->size;
+                continue;
             }
         }
     }
