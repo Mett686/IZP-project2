@@ -1,6 +1,6 @@
 # IZP Project 2 – Data Structures & Spatial/Graph Algorithms
 
-Second project for the **IZP (Introduction to Programming Systems)** course.
+Second project for the **IZP (Zaklady programovani)** course.
 
 ## Overview
 Implementation of dynamic memory management, pointer arithmetic, and data processing algorithms in C, accompanied by automated Shell testing scripts.
